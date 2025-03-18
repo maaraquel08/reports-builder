@@ -198,7 +198,7 @@ function SidePanel({
     };
 
     return (
-        <div className="side-panel">
+        <div className="side-panel h-full">
             <div className="side-panel-header">
                 <h2>Column Selection</h2>
                 <p className="subtitle">
@@ -225,7 +225,7 @@ function SidePanel({
                     )}
                 </div>
             </div>
-            <div className="categories-wrapper">
+            <div className="categories-wrapper h-full">
                 {Object.entries(columns).map(([section, sectionColumns]) => {
                     // If there's a search query and this section has no matches, hide it
                     if (searchQuery.trim() && !sectionsWithResults[section]) {

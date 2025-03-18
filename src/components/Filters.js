@@ -9,12 +9,8 @@ function Filters({
 }) {
     return (
         <div className="filter-section">
-            <div className="filter-header">
-                <h3>Filters & Aggregation</h3>
-            </div>
-            <div className="filter-controls">
+            <div className="filter-controls flex">
                 <div className="filter-group">
-                    <label>Department</label>
                     <select
                         value={filters.department}
                         onChange={(e) =>
@@ -34,7 +30,6 @@ function Filters({
                 </div>
 
                 <div className="filter-group">
-                    <label>Employment Status</label>
                     <select
                         value={filters.employmentStatus}
                         onChange={(e) =>
@@ -54,7 +49,6 @@ function Filters({
                 </div>
 
                 <div className="filter-group filter-date">
-                    <label>Date From</label>
                     <input
                         type="date"
                         value={filters.dateRange.start}
@@ -72,7 +66,6 @@ function Filters({
                 </div>
 
                 <div className="filter-group filter-date">
-                    <label>Date To</label>
                     <input
                         type="date"
                         value={filters.dateRange.end}
@@ -90,7 +83,6 @@ function Filters({
                 </div>
 
                 <div className="filter-group">
-                    <label>Aggregate By</label>
                     <select
                         value={aggregateBy}
                         onChange={(e) => setAggregateBy(e.target.value)}

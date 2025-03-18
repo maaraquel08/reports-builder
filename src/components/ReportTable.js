@@ -1,10 +1,23 @@
 import React, { useState } from "react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+} from "./ui/dropdown-menu";
+import { Button } from "./ui/button";
+import { Calculator } from "lucide-react";
 
 function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     // State to track expanded rows
     const [expandedRows, setExpandedRows] = useState({});
     // State to track expanded parent rows (for hierarchical data)
     const [expandedParents, setExpandedParents] = useState({});
+    // State to track column calculations
+    const [columnCalculations, setColumnCalculations] = useState({});
 
     // Toggle row expansion for cell details
     const toggleRowExpansion = (rowId) => {
@@ -20,6 +33,23 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
             ...prev,
             [parentId]: !prev[parentId],
         }));
+    };
+
+    // Set calculation type for a column
+    const setCalculationForColumn = (columnId, calculationType) => {
+        setColumnCalculations((prev) => ({
+            ...prev,
+            [columnId]: calculationType,
+        }));
+    };
+
+    // Clear calculation for a column
+    const clearCalculation = (columnId) => {
+        setColumnCalculations((prev) => {
+            const newCalculations = { ...prev };
+            delete newCalculations[columnId];
+            return newCalculations;
+        });
     };
 
     // Filter out dependent columns whose parents are not selected
@@ -62,7 +92,9 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
 
     // Check if a row has children
     const hasChildren = (rowId) => {
-        return parentChildMap[rowId] && parentChildMap[rowId].length > 0;
+        return Boolean(
+            parentChildMap[rowId] && parentChildMap[rowId].length > 0
+        );
     };
 
     // Modify the hasExpandableLeaveData function to include totalLeaveBalance
@@ -186,6 +218,17 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
 
     // Modify the renderEnhancedCellContent function for transaction cells
     const renderEnhancedCellContent = (row, column, rowIndex) => {
+        // Check if content is a long email address
+        const isLongText =
+            typeof row[column.id] === "string" && row[column.id]?.length > 25;
+        const isEmail =
+            typeof row[column.id] === "string" && row[column.id]?.includes("@");
+        const contentClass = isLongText
+            ? isEmail
+                ? "break-all"
+                : "break-words"
+            : "";
+
         // If this is the first column and row has children, add toggle
         if (column === visibleColumns[0] && hasChildren(row.id)) {
             const isParentExpanded = expandedParents[row.id];
@@ -205,7 +248,7 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                     >
                         <span className="toggle-icon"></span>
                     </button>
-                    <div className="cell-content">
+                    <div className={`cell-content ${contentClass}`}>
                         {renderCellContent(row, column)}
                     </div>
                 </div>
@@ -230,7 +273,7 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                         >
                             <span className="toggle-icon"></span>
                         </button>
-                        <div className="cell-primary-content">
+                        <div className={`cell-primary-content ${contentClass}`}>
                             {renderCellContent(row, column)}
                         </div>
                     </div>
@@ -262,7 +305,7 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                         >
                             <span className="toggle-icon"></span>
                         </button>
-                        <div className="cell-primary-content">
+                        <div className={`cell-primary-content ${contentClass}`}>
                             {renderCellContent(row, column)}
                         </div>
                     </div>
@@ -277,7 +320,75 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
         }
 
         // Default rendering for other cells
-        return renderCellContent(row, column);
+        return (
+            <div className={contentClass}>{renderCellContent(row, column)}</div>
+        );
+    };
+
+    // Calculate column values based on selected calculation type
+    const calculateColumnValue = (columnId) => {
+        const calculationType = columnCalculations[columnId];
+        if (!calculationType) return null;
+
+        // Get all values for the column
+        const allValues = data
+            .map((row) => row[columnId])
+            .filter((value) => value !== null && value !== undefined);
+
+        // For Count, we want to count all non-null values
+        if (calculationType === "Count") {
+            return {
+                type: calculationType,
+                value: allValues.length.toLocaleString(),
+            };
+        }
+
+        // For numeric calculations, filter for numbers only
+        const numericValues = allValues.filter(
+            (value) => typeof value === "number"
+        );
+
+        if (numericValues.length === 0)
+            return { type: calculationType, value: "—" };
+
+        // Perform calculation based on type
+        let result;
+        switch (calculationType) {
+            case "Sum":
+                result = numericValues.reduce((sum, value) => sum + value, 0);
+                break;
+            case "Average":
+                result =
+                    numericValues.reduce((sum, value) => sum + value, 0) /
+                    numericValues.length;
+                break;
+            case "Median":
+                const sorted = [...numericValues].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                result =
+                    sorted.length % 2 === 0
+                        ? (sorted[mid - 1] + sorted[mid]) / 2
+                        : sorted[mid];
+                break;
+            case "Min":
+                result = Math.min(...numericValues);
+                break;
+            case "Max":
+                result = Math.max(...numericValues);
+                break;
+            case "Range":
+                result =
+                    Math.max(...numericValues) - Math.min(...numericValues);
+                break;
+            default:
+                return null;
+        }
+
+        return {
+            type: calculationType,
+            value:
+                typeof result === "number" ? result.toLocaleString() : result,
+        };
     };
 
     // Recursive function to render rows with their children
@@ -294,23 +405,53 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                         ${row.isAggregated ? "aggregated-row" : ""} 
                         ${level > 0 ? "child-row level-" + level : ""}
                         ${row.isTransactionRow ? "transaction-row-tr" : ""}
+                        ${rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                        border-b border-gray-100 hover:bg-gray-100 transition-colors duration-150
                     `}
                 >
-                    {visibleColumns.map((column) => (
-                        <td
-                            key={column.id}
-                            className={`
-                                ${level > 0 ? "child-cell" : ""}
-                                ${
-                                    row.isTransactionRow
-                                        ? "transaction-cell"
-                                        : ""
-                                }
-                            `}
-                        >
-                            {renderEnhancedCellContent(row, column, rowIndex)}
-                        </td>
-                    ))}
+                    {visibleColumns.map((column) => {
+                        // Determine cell styling based on content type
+                        const isEmailColumn = column.id
+                            .toLowerCase()
+                            .includes("email");
+                        const isAddressColumn =
+                            column.id.toLowerCase().includes("address") ||
+                            column.id.toLowerCase().includes("location") ||
+                            column.id === "currentAddress";
+
+                        return (
+                            <td
+                                key={column.id}
+                                className={`
+                                    ${level > 0 ? "child-cell" : ""}
+                                    ${
+                                        row.isTransactionRow
+                                            ? "transaction-cell"
+                                            : ""
+                                    }
+                                    ${isEmailColumn ? "break-all" : ""}
+                                    ${
+                                        isAddressColumn
+                                            ? "whitespace-normal break-words"
+                                            : ""
+                                    }
+                                    !min-w-32 w-32 py-4 px-4
+                                `}
+                            >
+                                <div
+                                    className={`${
+                                        isAddressColumn ? "text-sm" : ""
+                                    } ${isEmailColumn ? "truncate" : ""}`}
+                                >
+                                    {renderEnhancedCellContent(
+                                        row,
+                                        column,
+                                        rowIndex
+                                    )}
+                                </div>
+                            </td>
+                        );
+                    })}
                 </tr>,
             ];
 
@@ -323,14 +464,105 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
         });
     };
 
+    // Modify renderCalculationDropdown to handle column types
+    const renderCalculationDropdown = (columnId) => {
+        const currentCalculation = columnCalculations[columnId];
+
+        // Helper function to check if column contains only string values
+        const isStringColumn = () => {
+            const data = getProcessedData();
+            return data.every((row) => {
+                const value = row[columnId];
+                return (
+                    typeof value === "string" ||
+                    value === null ||
+                    value === undefined
+                );
+            });
+        };
+
+        // Define all calculation options
+        const allCalculationOptions = [
+            { value: null, label: "None" },
+            { value: "Sum", label: "Sum", numericOnly: true },
+            { value: "Average", label: "Average", numericOnly: true },
+            { value: "Median", label: "Median", numericOnly: true },
+            { value: "Min", label: "Min", numericOnly: true },
+            { value: "Max", label: "Max", numericOnly: true },
+            { value: "Range", label: "Range", numericOnly: true },
+            { value: "Count", label: "Count", numericOnly: false },
+        ];
+
+        // Filter options based on column type
+        const isString = isStringColumn();
+        const calculationOptions = allCalculationOptions.filter(
+            (option) => !option.numericOnly || !isString
+        );
+
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 flex items-center px-2 rounded bg-white border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                    >
+                        <Calculator className="h-3.5 w-3.5 mr-1" />
+                        {currentCalculation || "Calculate"}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    side="top"
+                    align="end"
+                    className="w-[180px]"
+                    sideOffset={5}
+                >
+                    <DropdownMenuLabel>Choose calculation</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                        value={currentCalculation}
+                        onValueChange={(value) => {
+                            if (value === "null") {
+                                clearCalculation(columnId);
+                            } else {
+                                setCalculationForColumn(columnId, value);
+                            }
+                        }}
+                    >
+                        {calculationOptions.map((option) => (
+                            <DropdownMenuRadioItem
+                                key={option.value || "null"}
+                                value={option.value || "null"}
+                            >
+                                {option.label}
+                            </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    };
+
     return (
-        <div className="table-container">
+        <div className="table-container rounded-lg border border-gray-200 overflow-x-auto max-w-full">
             {visibleColumns.length > 0 ? (
-                <table className="report-table">
-                    <thead>
+                <table
+                    className="report-table w-full border-collapse"
+                    style={{ minWidth: `${visibleColumns.length * 8}rem` }}
+                >
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
-                            {visibleColumns.map((column) => (
-                                <th key={column.id}>{column.label}</th>
+                            {visibleColumns.map((column, idx) => (
+                                <th
+                                    key={column.id}
+                                    className={`!min-w-32 w-32 py-3 px-4 text-left font-medium text-gray-700 border-b border-gray-100 truncate`}
+                                >
+                                    <div className="column-header truncate">
+                                        <div className="column-label truncate">
+                                            {column.label}
+                                        </div>
+                                    </div>
+                                </th>
                             ))}
                         </tr>
                     </thead>
@@ -341,16 +573,74 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                             <tr>
                                 <td
                                     colSpan={visibleColumns.length}
-                                    className="no-data"
+                                    className="min-w-32 py-4 px-4 text-center text-gray-500 border-b border-gray-100"
                                 >
                                     No data to display
                                 </td>
                             </tr>
                         )}
                     </tbody>
+                    <tfoot>
+                        <tr className="calculation-row border-t bg-gray-50 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.05)]">
+                            {visibleColumns.map((column) => {
+                                const calculation =
+                                    Object.keys(columnCalculations).length > 0
+                                        ? calculateColumnValue(column.id)
+                                        : null;
+
+                                return (
+                                    <td
+                                        key={`calc-${column.id}`}
+                                        className="!min-w-32 w-32 py-3 px-4 text-sm relative group/cell"
+                                        style={{
+                                            width: `${
+                                                100 / visibleColumns.length
+                                            }%`,
+                                        }}
+                                    >
+                                        <div className="flex items-center min-w-0">
+                                            <div className="absolute left-2 ml-1.5 opacity-0 group-hover/cell:opacity-100 transition-opacity duration-150 flex-shrink-0 z-10">
+                                                {renderCalculationDropdown(
+                                                    column.id
+                                                )}
+                                            </div>
+
+                                            {calculation ? (
+                                                <div className="calculation-result truncate bg-green-50 p-1 px-2 rounded-md group-hover/cell:opacity-0 transition-opacity duration-150 font-medium">
+                                                    <span className="text-green-700">
+                                                        {calculation.value}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className={`text-gray-400 italic truncate group-hover/cell:opacity-0 transition-opacity duration-150 ${
+                                                        column ===
+                                                            visibleColumns[0] &&
+                                                        !Object.keys(
+                                                            columnCalculations
+                                                        ).length
+                                                            ? "visible"
+                                                            : "invisible"
+                                                    }`}
+                                                >
+                                                    {column ===
+                                                        visibleColumns[0] &&
+                                                    !Object.keys(
+                                                        columnCalculations
+                                                    ).length
+                                                        ? "Configure calculations"
+                                                        : "—"}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    </tfoot>
                 </table>
             ) : (
-                <div className="no-columns-message">
+                <div className="no-columns-message p-8 text-center text-gray-500">
                     <p>Please select columns to display</p>
                 </div>
             )}

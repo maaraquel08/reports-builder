@@ -12,7 +12,7 @@ function App() {
         Object.keys(columns).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
     const [expandedCategories, setExpandedCategories] = useState({});
-    const [showDetailedView, setShowDetailedView] = useState(false);
+    const [showDetailedView] = useState(false);
     const [filters, setFilters] = useState({
         department: "",
         employmentStatus: "",
@@ -296,69 +296,9 @@ function App() {
 
     return (
         <div className="App">
-            <div className="app-container">
-                <SidePanel
-                    columns={columns}
-                    selectedColumns={selectedColumns}
-                    expandedSections={expandedSections}
-                    expandedCategories={expandedCategories}
-                    handleColumnToggle={handleColumnToggle}
-                    toggleMainSection={toggleMainSection}
-                    toggleCategory={toggleCategory}
-                    isColumnEnabled={isColumnEnabled}
-                    formatSectionTitle={formatSectionTitle}
-                />
-
-                <main className="main-content">
-                    <div className="report-builder">
-                        <div className="report-header">
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                }}
-                            >
-                                <h1>HRIS Report Builder</h1>
-                                {selectedColumns.some(
-                                    (col) => col.hasTransactions
-                                ) && (
-                                    <div className="view-toggle-container">
-                                        <span className="view-toggle-label">
-                                            {showDetailedView
-                                                ? "Detailed View"
-                                                : "Summary View"}
-                                        </span>
-                                        <label className="toggle-switch">
-                                            <input
-                                                type="checkbox"
-                                                checked={showDetailedView}
-                                                onChange={() =>
-                                                    setShowDetailedView(
-                                                        !showDetailedView
-                                                    )
-                                                }
-                                            />
-                                            <span className="toggle-slider"></span>
-                                        </label>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="column-counter">
-                                <span className="counter-text">
-                                    {selectedColumns.length} columns selected
-                                </span>
-                                {selectedColumns.length > 0 && (
-                                    <button
-                                        className="clear-button"
-                                        onClick={clearAllColumns}
-                                    >
-                                        Clear All
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
+            <div className="app-container max-w-[1320px] mx-auto flex flex-col">
+                <main className="main-content border border-gray-200 rounded-3xl overscroll-none flex flex-col h-full overflow-hidden">
+                    <div className="report-header flex flex-row justify-between">
                         <Filters
                             filters={filters}
                             setFilters={setFilters}
@@ -366,8 +306,34 @@ function App() {
                             setAggregateBy={setAggregateBy}
                             getUniqueValues={getUniqueValues}
                         />
+                        <div className="column-counter ">
+                            <span className="counter-text bg-green-50 text-green-700 font-">
+                                {selectedColumns.length} columns selected
+                            </span>
+                            {selectedColumns.length > 0 && (
+                                <button
+                                    className="clear-button"
+                                    onClick={clearAllColumns}
+                                >
+                                    Clear All
+                                </button>
+                            )}
+                        </div>
+                    </div>
 
-                        <div className="report-section">
+                    <div className="flex h-full overflow-hidden">
+                        <SidePanel
+                            columns={columns}
+                            selectedColumns={selectedColumns}
+                            expandedSections={expandedSections}
+                            expandedCategories={expandedCategories}
+                            handleColumnToggle={handleColumnToggle}
+                            toggleMainSection={toggleMainSection}
+                            toggleCategory={toggleCategory}
+                            isColumnEnabled={isColumnEnabled}
+                            formatSectionTitle={formatSectionTitle}
+                        />
+                        <div className="report-builder w-full p-4 overflow-auto">
                             <ReportTable
                                 selectedColumns={selectedColumns}
                                 getProcessedData={getProcessedData}

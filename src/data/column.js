@@ -174,14 +174,6 @@ export const columns = {
                 label: "Basic Salary",
                 category: "Basic Compensation",
                 isParent: true,
-                dependents: [
-                    "salaryType",
-                    "payFrequency",
-                    "hourlyRate",
-                    "dailyRate",
-                    "monthlyRate",
-                    "annualSalary",
-                ],
             },
             salaryType: {
                 id: "salaryType",
