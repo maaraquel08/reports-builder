@@ -12,7 +12,12 @@ import {
 import { Button } from "./ui/button";
 import { Calculator, GripHorizontal } from "lucide-react";
 
-function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
+function ReportTable({
+    selectedColumns,
+    getProcessedData,
+    renderCellContent,
+    onOrderChange,
+}) {
     // State to track expanded rows
     const [expandedRows, setExpandedRows] = useState({});
     // State to track expanded parent rows (for hierarchical data)
@@ -53,6 +58,8 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     // Update column order when columns are reordered
     const handleReorder = (reorderedColumns) => {
         setOrderedColumns(reorderedColumns);
+        // Pass the new order back to parent
+        onOrderChange?.(reorderedColumns);
     };
 
     // Toggle row expansion for cell details
@@ -426,6 +433,21 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                 typeof result === "number" ? result.toLocaleString() : result,
         };
     };
+
+    // Effect to sync calculations with parent component
+    useEffect(() => {
+        // Create an object with all current calculations
+        const currentCalculations = {};
+        orderedColumns.forEach((column) => {
+            const calc = calculateColumnValue(column.id);
+            if (calc) {
+                currentCalculations[column.id] = calc;
+            }
+        });
+
+        // Pass calculations to parent if the prop exists
+        onOrderChange?.(orderedColumns, currentCalculations);
+    }, [orderedColumns, columnCalculations]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Recursive function to render rows with their children
     const renderRowsRecursively = (rows, level = 0) => {

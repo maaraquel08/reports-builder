@@ -5,9 +5,11 @@ import { employees } from "./data/sampleData";
 import SidePanel from "./components/SidePanel";
 import Filters from "./components/Filters";
 import ReportTable from "./components/ReportTable";
+import * as XLSX from "xlsx";
 
 function App() {
     const [selectedColumns, setSelectedColumns] = useState([]);
+    const [currentOrderedColumns, setCurrentOrderedColumns] = useState([]);
     const [expandedSections, setExpandedSections] = useState(
         Object.keys(columns).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
@@ -22,33 +24,39 @@ function App() {
         },
     });
     const [aggregateBy, setAggregateBy] = useState("");
+    const [currentCalculations, setCurrentCalculations] = useState({});
 
     const handleColumnToggle = (column) => {
         if (selectedColumns.find((col) => col.id === column.id)) {
             // If turning off a parent column, remove its dependents too
             if (column.isParent) {
                 const dependentsToRemove = column.dependents || [];
-                setSelectedColumns(
-                    selectedColumns.filter(
-                        (col) =>
-                            col.id !== column.id &&
-                            !dependentsToRemove.includes(col.id)
-                    )
+                const newColumns = selectedColumns.filter(
+                    (col) =>
+                        col.id !== column.id &&
+                        !dependentsToRemove.includes(col.id)
                 );
+                setSelectedColumns(newColumns);
+                setCurrentOrderedColumns(newColumns);
             } else {
                 // Just remove this single column
-                setSelectedColumns(
-                    selectedColumns.filter((col) => col.id !== column.id)
+                const newColumns = selectedColumns.filter(
+                    (col) => col.id !== column.id
                 );
+                setSelectedColumns(newColumns);
+                setCurrentOrderedColumns(newColumns);
             }
         } else {
             // If turning on a column, just add it without auto-selecting dependents
-            setSelectedColumns([...selectedColumns, column]);
+            const newColumns = [...selectedColumns, column];
+            setSelectedColumns(newColumns);
+            setCurrentOrderedColumns(newColumns);
         }
     };
 
     const clearAllColumns = () => {
         setSelectedColumns([]);
+        setCurrentOrderedColumns([]);
     };
 
     const isColumnEnabled = (column) => {
@@ -294,6 +302,83 @@ function App() {
         return [...new Set(employees.map((emp) => emp[field]))].filter(Boolean);
     };
 
+    const handleOrderChange = (newOrder, calculations) => {
+        setCurrentOrderedColumns(newOrder);
+        if (calculations) {
+            setCurrentCalculations(calculations);
+        }
+    };
+
+    const handleDownload = () => {
+        const data = getProcessedData();
+
+        // Use the current ordered columns instead of selectedColumns
+        const columnsToUse =
+            currentOrderedColumns.length > 0
+                ? currentOrderedColumns
+                : selectedColumns;
+
+        // Create worksheet data with headers
+        const wsData = [
+            // Headers row using ordered columns
+            columnsToUse.map((col) => col.label),
+            // Data rows using ordered columns
+            ...data.map((row) =>
+                columnsToUse.map((col) => {
+                    const cellContent = row[col.id];
+                    if (Array.isArray(cellContent)) {
+                        return `${cellContent.length} items`;
+                    } else if (
+                        cellContent &&
+                        typeof cellContent === "object" &&
+                        !React.isValidElement(cellContent)
+                    ) {
+                        return JSON.stringify(cellContent);
+                    }
+                    return cellContent || "";
+                })
+            ),
+            // Add a blank row as separator
+            columnsToUse.map(() => ""),
+            // Add calculations row with labels
+            columnsToUse.map((col) => {
+                const calculation = currentCalculations[col.id];
+                if (calculation) {
+                    return `${calculation.type}: ${calculation.value}`;
+                }
+                return "—";
+            }),
+        ];
+
+        // Create worksheet
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // Style the calculations row
+        const lastRowIndex = wsData.length;
+        const range = XLSX.utils.decode_range(ws["!ref"]);
+
+        // Add cell styling for the calculation row
+        for (let C = range.s.c; C <= range.e.c; C++) {
+            const cellRef = XLSX.utils.encode_cell({
+                r: lastRowIndex - 1,
+                c: C,
+            });
+            if (!ws[cellRef]) ws[cellRef] = {};
+            ws[cellRef].s = {
+                fill: { fgColor: { rgb: "E8F5E9" } }, // Light green background
+                font: { bold: true, color: { rgb: "1B5E20" } }, // Dark green text
+            };
+        }
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Report");
+
+        // Generate Excel file with timestamp
+        const timestamp = new Date().toISOString().split("T")[0];
+        XLSX.writeFile(wb, `employee_report_${timestamp}.xlsx`);
+    };
+
     return (
         <div className="App">
             <div className="app-container max-w-[1320px] mx-auto flex flex-col">
@@ -311,12 +396,25 @@ function App() {
                                 {selectedColumns.length} columns selected
                             </span>
                             {selectedColumns.length > 0 && (
-                                <button
-                                    className="clear-button"
-                                    onClick={clearAllColumns}
-                                >
-                                    Clear All
-                                </button>
+                                <>
+                                    <button
+                                        className="clear-button"
+                                        onClick={clearAllColumns}
+                                    >
+                                        Clear All
+                                    </button>
+                                    <button
+                                        className="clear-button"
+                                        onClick={handleDownload}
+                                        style={{
+                                            backgroundColor: "#17ad49",
+                                            color: "white",
+                                            border: "none",
+                                        }}
+                                    >
+                                        Download
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -338,6 +436,7 @@ function App() {
                                 selectedColumns={selectedColumns}
                                 getProcessedData={getProcessedData}
                                 renderCellContent={renderCellContent}
+                                onOrderChange={handleOrderChange}
                             />
                         </div>
                     </div>
