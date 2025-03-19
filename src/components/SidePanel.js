@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
 function SidePanel({
     columns,
@@ -249,76 +250,107 @@ function SidePanel({
                                     }`}
                                 ></span>
                             </div>
-                            {(expandedSections[section] ||
-                                (searchQuery &&
-                                    sectionsWithResults[section])) && (
-                                <div className="main-accordion-content">
-                                    {Object.entries(sectionColumns).map(
-                                        ([category, categoryColumns]) => {
-                                            // If there's a search query and this category has no matches, hide it
-                                            if (
-                                                searchQuery.trim() &&
-                                                !categoriesWithResults[
-                                                    category
-                                                ] &&
-                                                !categoryHasMatchingColumns(
-                                                    categoryColumns
-                                                )
-                                            ) {
-                                                return null;
-                                            }
+                            <AnimatePresence>
+                                {(expandedSections[section] ||
+                                    (searchQuery &&
+                                        sectionsWithResults[section])) && (
+                                    <motion.div
+                                        className="main-accordion-content"
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{
+                                            duration: 0.2,
+                                            ease: "easeInOut",
+                                        }}
+                                    >
+                                        {Object.entries(sectionColumns).map(
+                                            ([category, categoryColumns]) => {
+                                                // If there's a search query and this category has no matches, hide it
+                                                if (
+                                                    searchQuery.trim() &&
+                                                    !categoriesWithResults[
+                                                        category
+                                                    ] &&
+                                                    !categoryHasMatchingColumns(
+                                                        categoryColumns
+                                                    )
+                                                ) {
+                                                    return null;
+                                                }
 
-                                            return (
-                                                <div
-                                                    key={category}
-                                                    className="category-section"
-                                                >
+                                                return (
                                                     <div
-                                                        className="category-header"
-                                                        onClick={() =>
-                                                            toggleCategory(
-                                                                category
-                                                            )
-                                                        }
+                                                        key={category}
+                                                        className="category-section"
                                                     >
-                                                        <h3>
-                                                            {formatSectionTitle(
-                                                                category
-                                                            )}
-                                                        </h3>
-                                                        <span
-                                                            className={`caret ${
-                                                                expandedCategories[
+                                                        <div
+                                                            className="category-header"
+                                                            onClick={() =>
+                                                                toggleCategory(
                                                                     category
-                                                                ] ||
+                                                                )
+                                                            }
+                                                        >
+                                                            <h3>
+                                                                {formatSectionTitle(
+                                                                    category
+                                                                )}
+                                                            </h3>
+                                                            <span
+                                                                className={`caret ${
+                                                                    expandedCategories[
+                                                                        category
+                                                                    ] ||
+                                                                    (searchQuery &&
+                                                                        categoriesWithResults[
+                                                                            category
+                                                                        ])
+                                                                        ? "caret-up"
+                                                                        : "caret-down"
+                                                                }`}
+                                                            ></span>
+                                                        </div>
+                                                        <AnimatePresence>
+                                                            {(expandedCategories[
+                                                                category
+                                                            ] ||
                                                                 (searchQuery &&
                                                                     categoriesWithResults[
                                                                         category
-                                                                    ])
-                                                                    ? "caret-up"
-                                                                    : "caret-down"
-                                                            }`}
-                                                        ></span>
-                                                    </div>
-                                                    {(expandedCategories[
-                                                        category
-                                                    ] ||
-                                                        (searchQuery &&
-                                                            categoriesWithResults[
-                                                                category
-                                                            ])) && (
-                                                        <div className="category-content">
-                                                            {renderColumns(
-                                                                categoryColumns
+                                                                    ])) && (
+                                                                <motion.div
+                                                                    className="category-content"
+                                                                    initial={{
+                                                                        height: 0,
+                                                                        opacity: 0,
+                                                                    }}
+                                                                    animate={{
+                                                                        height: "auto",
+                                                                        opacity: 1,
+                                                                    }}
+                                                                    exit={{
+                                                                        height: 0,
+                                                                        opacity: 0,
+                                                                    }}
+                                                                    transition={{
+                                                                        duration: 0.2,
+                                                                        ease: "easeInOut",
+                                                                    }}
+                                                                >
+                                                                    {renderColumns(
+                                                                        categoryColumns
+                                                                    )}
+                                                                </motion.div>
                                                             )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        }
-                                    )}
-                                </div>
-                            )}
+                                                        </AnimatePresence>
+                                                    </div>
+                                                );
+                                            }
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     );
                 })}

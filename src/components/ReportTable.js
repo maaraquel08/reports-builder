@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -9,7 +10,7 @@ import {
     DropdownMenuRadioItem,
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
-import { Calculator } from "lucide-react";
+import { Calculator, GripHorizontal } from "lucide-react";
 
 function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     // State to track expanded rows
@@ -18,6 +19,41 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     const [expandedParents, setExpandedParents] = useState({});
     // State to track column calculations
     const [columnCalculations, setColumnCalculations] = useState({});
+    // Modify the column ordering state to use a single state
+    const [orderedColumns, setOrderedColumns] = useState(() => selectedColumns);
+    // Add state for tracking dragged column
+    const [draggedColumn, setDraggedColumn] = useState(null);
+
+    // Update orderedColumns when selectedColumns changes
+    useEffect(() => {
+        // Memoize the current IDs outside the state updates
+        const currentIds = new Set(orderedColumns.map((col) => col.id));
+        const selectedIds = new Set(selectedColumns.map((col) => col.id));
+
+        // Only update if there's an actual difference in columns
+        if (
+            currentIds.size !== selectedIds.size ||
+            ![...currentIds].every((id) => selectedIds.has(id))
+        ) {
+            setOrderedColumns((prevColumns) => {
+                // Keep existing columns that are still in selectedColumns
+                const existingColumns = prevColumns.filter((col) =>
+                    selectedColumns.some((newCol) => newCol.id === col.id)
+                );
+                // Find new columns to add
+                const newColumns = selectedColumns.filter(
+                    (col) => !currentIds.has(col.id)
+                );
+                // Combine existing (maintaining order) with new columns
+                return [...existingColumns, ...newColumns];
+            });
+        }
+    }, [selectedColumns, orderedColumns]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Update column order when columns are reordered
+    const handleReorder = (reorderedColumns) => {
+        setOrderedColumns(reorderedColumns);
+    };
 
     // Toggle row expansion for cell details
     const toggleRowExpansion = (rowId) => {
@@ -53,9 +89,9 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     };
 
     // Filter out dependent columns whose parents are not selected
-    const visibleColumns = selectedColumns.filter((column) => {
+    const visibleColumns = orderedColumns.filter((column) => {
         if (column.isDependentOf) {
-            return selectedColumns.some(
+            return orderedColumns.some(
                 (col) => col.id === column.isDependentOf
             );
         }
@@ -438,17 +474,28 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
                                     !min-w-32 w-32 py-4 px-4
                                 `}
                             >
-                                <div
-                                    className={`${
-                                        isAddressColumn ? "text-sm" : ""
-                                    } ${isEmailColumn ? "truncate" : ""}`}
-                                >
-                                    {renderEnhancedCellContent(
-                                        row,
-                                        column,
-                                        rowIndex
-                                    )}
-                                </div>
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={column.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{
+                                            duration: 0.2,
+                                            ease: "easeOut",
+                                            exit: { ease: "easeIn" },
+                                        }}
+                                        className={`${
+                                            isAddressColumn ? "text-sm" : ""
+                                        } ${isEmailColumn ? "truncate" : ""}`}
+                                    >
+                                        {renderEnhancedCellContent(
+                                            row,
+                                            column,
+                                            rowIndex
+                                        )}
+                                    </motion.div>
+                                </AnimatePresence>
                             </td>
                         );
                     })}
@@ -544,27 +591,82 @@ function ReportTable({ selectedColumns, getProcessedData, renderCellContent }) {
     };
 
     return (
-        <div className="table-container rounded-lg border border-gray-200 overflow-x-auto max-w-full">
+        <div className="table-container rounded-lg border border-gray-200 overflow-x-auto max-w-full relative">
             {visibleColumns.length > 0 ? (
                 <table
                     className="report-table w-full border-collapse"
                     style={{ minWidth: `${visibleColumns.length * 8}rem` }}
                 >
                     <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            {visibleColumns.map((column, idx) => (
-                                <th
+                        <Reorder.Group
+                            as="tr"
+                            axis="x"
+                            values={visibleColumns}
+                            onReorder={handleReorder}
+                        >
+                            {visibleColumns.map((column) => (
+                                <Reorder.Item
+                                    as="th"
                                     key={column.id}
-                                    className={`!min-w-32 w-32 py-3 px-4 text-left font-medium text-gray-700 border-b border-gray-100 truncate`}
+                                    value={column}
+                                    className={`
+                                        !min-w-32 w-32 py-3 px-4 
+                                        text-left font-medium text-gray-700 
+                                        border-b border-gray-100 
+                                        truncate cursor-move relative group
+                                        select-none
+                                    `}
+                                    whileDrag={{
+                                        scale: 1.02,
+                                        backgroundColor: "rgb(243 244 246)",
+                                        zIndex: 20,
+                                    }}
+                                    onDragStart={() =>
+                                        setDraggedColumn(column.id)
+                                    }
+                                    onDragEnd={() => setDraggedColumn(null)}
+                                    layout
+                                    transition={{
+                                        layout: {
+                                            duration: 0.2,
+                                            ease: "easeOut",
+                                        },
+                                    }}
                                 >
-                                    <div className="column-header truncate">
-                                        <div className="column-label truncate">
-                                            {column.label}
+                                    <div className="column-header truncate flex items-center gap-2 min-w-0 w-full">
+                                        <div className="drag-handle opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                            <GripHorizontal className="h-4 w-4 text-gray-400" />
                                         </div>
+                                        <motion.div
+                                            className="column-label truncate font-medium text-gray-700 w-full"
+                                            layout="position"
+                                            transition={{
+                                                layout: {
+                                                    duration: 0.2,
+                                                    ease: "easeOut",
+                                                },
+                                            }}
+                                        >
+                                            {column.label}
+                                        </motion.div>
                                     </div>
-                                </th>
+                                    {draggedColumn === column.id && (
+                                        <motion.div
+                                            className="absolute left-0 top-0 w-full bg-gray-100/50 border-x-2 border-blue-500"
+                                            initial={{ height: 0 }}
+                                            animate={{
+                                                height: "100vh",
+                                                transition: { duration: 0.2 },
+                                            }}
+                                            style={{
+                                                pointerEvents: "none",
+                                                zIndex: 10,
+                                            }}
+                                        />
+                                    )}
+                                </Reorder.Item>
                             ))}
-                        </tr>
+                        </Reorder.Group>
                     </thead>
                     <tbody>
                         {topLevelRows.length > 0 ? (
